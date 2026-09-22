@@ -31,15 +31,19 @@ Minimum Salary Expectation: $85,000+ (if explicitly listed).
 
 async function main() {
   console.log("🤖 Booting Hybrid Autonomous Career Evaluator...");
-  const browser = await localBrowser.launch({ headless: true }); // change to headless: false if you're running it locally and want to see the browser
+  
+  const browser = await localBrowser.launch({ 
+    headless: true, // change to headless: false if you're running it locally and want to see the browser
+    args: ["--no-sandbox", "--disable-setuid-sandbox"] // bypass sandbox
+  });
 
   try {
-    // TODO: sets up stagehand with a model and API key for reasoning
+    // sets up stagehand with a model and API key for reasoning
     const stagehand = await Stagehand.create({
       browser,
       model: {
-        modelName: "model-goes-here", // <-- TODO: replace with the model you want to use
-        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY  // <-- make sure this is set in your .env file, DON'T COMMIT IT PLS
+        modelName: "google/gemini-3.1-flash-lite-preview",
+        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY 
       },
       logging: { level: "info" } 
     });
@@ -47,12 +51,11 @@ async function main() {
 
     console.log("🌐 Navigating to SimplifyJobs New Grad Board...");
     const [page] = await browser.context.pages();
-    await page.goto("https://github.com/vanshb03/Summer2027-Internships?tab=readme-ov-file", { waitUntil: "domcontentloaded" }); // <-- this is the starting job board the browser navigates to
+    await page.goto("https://github.com/vanshb03/Summer2027-Internships?tab=readme-ov-file", { waitUntil: "domcontentloaded", timeout: 60000 }); // <-- this is the starting job board the browser navigates to
 
     // page-specific selectors help your pipeline find the exact data you want to act on
     console.log("⏳ Waiting for README table to render...");
-    // TODO: Update the selector below to match the specific table or element you want to scrape from the page. This is a placeholder and may need to be adjusted based on the actual page structure.
-    await page.waitForSelector("find-selector", { timeout: 15000 }); // sometimes pages need time to render
+    await page.waitForSelector(".markdown-body table", { timeout: 15000 }); // sometimes pages need time to render
 
     console.log("⚡ Finding the Job Roles table...");
     const jobs = await page.evaluate(() => {
@@ -100,7 +103,7 @@ async function main() {
         });
       }
 
-      // shuffle the extracted jobs to get a random sample of 3 -- otherwise some websites might rate limit our IP lol.
+      // shuffle the extracted jobs to get a random sample of 3 -- otherwise some websites might rate limit our IP.
       for (let i = extracted.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [extracted[i], extracted[j]] = [extracted[j], extracted[i]];
@@ -125,27 +128,37 @@ async function main() {
         console.log(`🔗 Navigating to: ${job.applyUrl}`);
         
         try {
-          await page.goto(job.applyUrl, { waitUntil: "networkidle", timeout: 30000 });
+          await page.goto(job.applyUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
           console.log("⏳ Waiting for JavaScript to render the job description...");
           await page.waitForTimeout(3000); 
 
-          /** TODO: Define the schema for job analysis ADD MORE!! */
+          /** TODO: Define the schema for job analysis */
           const JobAnalysisSchema = z.object({
               roleTitle: z.string().default(job.role),
               company: z.string().default(job.company),
+              preferenceAlignment: z.string().describe("Evaluate the role against the candidate's preferences (Location, Dealbreakers, Tech Stack). Note any red flags or perfect matches."),
+              dealbreakerHit: z.boolean().describe("True if the job hits ANY of the candidate's listed dealbreakers."),
+              matchScore: z.number().min(0).max(100).describe("You are a recruiter on a time crunch. Evaluate the candidate's fit for this role on a scale of 0-100, where 100 is a perfect match. Consider hard requirements, skill match, subject-matter experience (or lack therof), and nice to haves. Be honest."),
               matchAnalysis: z.string().describe("You are a recruiter for this company. Provide a two-sentence breakdown comparing the candidate's skills against the job post. Be Honest."),
+              missingSkills: z.array(z.string()).describe("Key requirements listed on the page that are missing from candidate profile.")
           }); 
 
           console.log("🧠 Stagehand + Gemini evaluating page contents...");
-          /** TODO: Build prompt for job analysis WITH schema */
+          /** TODO: Build prompt for job analysis */
           const analysis = await stagehand.extract(
-              `how can you prompt this?`
+              `Analyze this job posting against the candidate profile below:
+              CANDIDATE PROFILE:
+              ${MY_PROFILE}
+              
+              CANDIDATE PREFERENCES:
+              ${MY_PREFERENCES}`,
+              JobAnalysisSchema
           );
 
-          // console.log(`📊 Fit Score: ${analysis.data.matchScore}/100 | Relevant: ${analysis.data.preferenceAlignment}`);
-          // console.log(`💡 ${analysis.data.matchAnalysis}`);
+          console.log(`📊 Fit Score: ${analysis.data.matchScore}/100 | Relevant: ${analysis.data.preferenceAlignment}`);
+          console.log(`💡 ${analysis.data.matchAnalysis}`);
 
-          if (true) { //!analysis.data.dealbreakerHit) { // <-- I used this check for my schema
+          if (!analysis.data.dealbreakerHit) {
               matchedJobs.push({
                 ...analysis.data,
                 applyUrl: job.applyUrl

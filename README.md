@@ -41,6 +41,16 @@ The agent requires a local Playwright Chromium instance to execute browser actio
 npx playwright install chromium
 ```
 
+Also run for mac:
+```bash
+export CHROME_PATH=$(find $HOME/.cache/ms-playwright -name chrome -type f | head -n 1)
+```
+
+or for windows:
+```bash
+$env:CHROME_PATH = (Get-ChildItem -Path "$env:USERPROFILE\AppData\Local\ms-playwright" -Filter "chrome.exe" -Recurse -File | Select-Object -First 1).FullName
+```
+
 **4. Configure Environment Variables**
 Create a new file named exactly `.env` in the root directory of the project. Add your Gemini API key without any spaces around the equals sign:
 
