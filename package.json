@@ -8,7 +8,8 @@
   "dependencies": {
     "@browserbasehq/stagehand": "latest",
     "dotenv": "^16.4.0",
-    "zod": "latest"
+    "zod": "latest",
+    "playwright": "^1.49.0" 
   },
   "devDependencies": {
     "tsx": "^4.0.0",

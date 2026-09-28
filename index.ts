@@ -1,6 +1,7 @@
 import { localBrowser, Stagehand } from "@browserbasehq/stagehand";
 import { z } from "zod";
-import fs from "fs/promises"; // <-- NEW: Import the file system module
+import fs from "fs/promises";
+import { chromium } from "playwright";
 import "dotenv/config";
 
 /** TODO: Fill in your information */
@@ -34,6 +35,7 @@ async function main() {
   
   const browser = await localBrowser.launch({ 
     headless: true, // change to headless: false if you're running it locally and want to see the browser
+    executablePath: chromium.executablePath(), // Point Stagehand directly to the cached binary
     args: ["--no-sandbox", "--disable-setuid-sandbox"] // bypass sandbox
   });
 
